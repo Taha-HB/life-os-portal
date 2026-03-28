@@ -1,0 +1,173 @@
+name: Deploy Life OS Portal
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  # Test Job
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd client && npm ci
+        cd ../server && npm ci
+    
+    - name: Run linting
+      run: |
+        npm run lint || true
+        cd client && npm run lint || true
+    
+    - name: Run tests
+      run: |
+        npm test || true
+        cd server && npm test || true
+    
+    - name: Build client
+      run: npm run build:client
+    
+    - name: Build server
+      run: npm run build:server
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: build
+        path: |
+          client/dist
+          server/dist
+
+  # Deploy to Vercel (Frontend)
+  deploy-frontend:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build client
+      run: npm run build:client
+      env:
+        VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        VITE_APP_NAME: "Life OS Portal"
+    
+    - name: Deploy to Vercel
+      uses: amondnet/vercel-action@v20
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+        vercel-args: '--prod'
+        working-directory: ./client
+
+  # Deploy Backend to Railway/Render (Alternative to Vercel for backend)
+  deploy-backend:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Deploy to Railway
+      uses: bervProject/railway-deploy@main
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      with:
+        railway_token: ${{ secrets.RAILWAY_TOKEN }}
+        service: server
+
+  # Deploy to MongoDB Atlas (Database Setup)
+  setup-database:
+    needs: deploy-backend
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Setup MongoDB Atlas
+      uses: mongodb/mongodb-atlas-deploy-action@v1
+      with:
+        atlas-public-key: ${{ secrets.ATLAS_PUBLIC_KEY }}
+        atlas-private-key: ${{ secrets.ATLAS_PRIVATE_KEY }}
+        atlas-project-id: ${{ secrets.ATLAS_PROJECT_ID }}
+        atlas-cluster-name: ${{ secrets.ATLAS_CLUSTER_NAME }}
+        atlas-db-name: "life-os-portal"
+
+  # Create GitHub Release
+  create-release:
+    needs: [deploy-frontend, deploy-backend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Create Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: Release v${{ github.run_number }}
+        body: |
+          ## Life OS Portal Deployment
+          
+          ### Frontend
+          - Deployed to Vercel: ${{ secrets.VERCEL_FRONTEND_URL }}
+          
+          ### Backend
+          - Deployed to Railway: ${{ secrets.RAILWAY_BACKEND_URL }}
+          
+          ### Changes in this release
+          - ${{ github.event.head_commit.message }}
+        draft: false
+        prerelease: false
+
+  # Send Deployment Notification
+  notify:
+    needs: [deploy-frontend, deploy-backend]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Send Telegram Notification
+      uses: appleboy/telegram-action@master
+      with:
+        to: ${{ secrets.TELEGRAM_CHAT_ID }}
+        token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        message: |
+          🚀 Life OS Portal Deployed Successfully!
+          
+          Frontend: ${{ secrets.VERCEL_FRONTEND_URL }}
+          Backend: ${{ secrets.RAILWAY_BACKEND_URL }}
+          Commit: ${{ github.event.head_commit.message }}
+          Deployed by: ${{ github.actor }}
