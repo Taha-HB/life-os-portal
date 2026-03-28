@@ -65,4 +65,35 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.VIEW_ALL_LOGS,
     Permission.SYSTEM_MAINTENANCE
   ]
+};  ],
+  [UserRole.ADMIN]: [
+    Permission.VIEW_DASHBOARD,
+    Permission.MANAGE_EVENTS,
+    Permission.MANAGE_NOTES,
+    Permission.VIEW_REPORTS,
+    Permission.MANAGE_SETTINGS,
+    Permission.VIEW_ALL_USERS,
+    Permission.MANAGE_USERS,
+    Permission.VIEW_ANALYTICS,
+    Permission.MANAGE_ANNOUNCEMENTS,
+    Permission.MANAGE_SYSTEM_SETTINGS,
+    Permission.VIEW_AUDIT_LOGS
+  ],
+  [UserRole.SUPER_ADMIN]: [
+    Permission.VIEW_DASHBOARD,
+    Permission.MANAGE_EVENTS,
+    Permission.MANAGE_NOTES,
+    Permission.VIEW_REPORTS,
+    Permission.MANAGE_SETTINGS,
+    Permission.VIEW_ALL_USERS,
+    Permission.MANAGE_USERS,
+    Permission.VIEW_ANALYTICS,
+    Permission.MANAGE_ANNOUNCEMENTS,
+    Permission.MANAGE_SYSTEM_SETTINGS,
+    Permission.VIEW_AUDIT_LOGS,
+    Permission.MANAGE_BACKUPS,
+    Permission.MANAGE_ADMINS,
+    Permission.VIEW_ALL_LOGS,
+    Permission.SYSTEM_MAINTENANCE
+  ]
 };
